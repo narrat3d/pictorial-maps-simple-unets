@@ -1,0 +1,8 @@
+numpy==1.16.4
+tensorflow==1.13.1
+tensorflow-gpu==1.13.1
+pillow
+pydot
+Cython
+matplotlib
+git+https://github.com/philferriere/cocoapi.git#subdirectory=PythonAPI
