@@ -1,8 +1,19 @@
 '''
-Created on 14.01.2020
+precondition:
+predicted masks and keypoints with training.py
 
-@author: raimund
+input: 
+COCO files with groundtruth masks and keypoints
+folder with detected masks and keypoints
+
+output:
+average precision for joints 
+average precision for body parts 
+
+purpose:
+calculate COCO metrics 
 '''
+
 import numpy
 from PIL import Image
 import json
@@ -104,7 +115,6 @@ def coco_mask_result(image_id, detected_mask):
     for i in range(NUMBER_OF_BODY_PARTS):
         mask = detected_mask.copy()
         binary_mask = mask.point(lambda p: (p == i and 1) or 0)
-        binary_mask.save(r"E:\CNN\logs\body_parts\real\tmp.png")
         
         mask_np = numpy.asfortranarray(binary_mask)
         
@@ -113,8 +123,10 @@ def coco_mask_result(image_id, detected_mask):
         
         coco_masks.append({
             "image_id": image_id, 
-            "category_id": i, 
+            "category_id": i + 1, 
             "segmentation": mask_rle, 
+            "area": COCOmask.area(mask_rle).tolist(), 
+            "bbox": COCOmask.toBbox(mask_rle).tolist(), 
             "score": 1.0,        
         })
          
@@ -175,14 +187,11 @@ def create_mask_result_file(masks_ground_truth_path, output_folder):
         if (image_id == None):
             continue
         
-        print(image_file_name)
-        
         mask_file_path = os.path.join(output_folder, mask_file_name)
         mask = Image.open(mask_file_path).getchannel(MASK_CHANNEL)
         
         coco_mask_result_data = coco_mask_result(image_id, mask)
         coco_masks.extend(coco_mask_result_data)
-        break
         
     results_mask_file_path = os.path.join(output_folder, "coco_masks.json")
     
@@ -193,14 +202,14 @@ def create_mask_result_file(masks_ground_truth_path, output_folder):
 
 
 if __name__ == '__main__':    
-    # keypoints_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_keypoints.json"
-    # keypoints_results_folder = r"E:\CNN\logs\body_parts\real\keypoints"
+    keypoints_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_keypoints.json"
+    keypoints_results_folder = r"E:\CNN\logs\body_parts\real\keypoints"
     
-    masks_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_masks_1.json"
+    masks_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_masks.json"
     masks_results_folder = r"E:\CNN\logs\body_parts\real\masks"
     
-    # keypoints_results_path = create_keypoint_result_file(keypoints_ground_truth_path, keypoints_results_folder)
-    # calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
+    keypoints_results_path = create_keypoint_result_file(keypoints_ground_truth_path, keypoints_results_folder)
+    calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
     
     masks_results_path = create_mask_result_file(masks_ground_truth_path, masks_results_folder)
-    calculate_results(masks_ground_truth_path, masks_results_path, "bbox")
+    calculate_results(masks_ground_truth_path, masks_results_path, "segm")

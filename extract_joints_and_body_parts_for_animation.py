@@ -1,23 +1,17 @@
-'''
-Created on 3 Jul 2019
-
-@author: raimund
-'''
-"""
 import config
 from evaluation import initialise_sessions, infer
 import os
 from PIL import Image, ImageDraw
 import shutil
 import json
-from extract_body_parts_with_unet import create_res_u_net_model, IMAGE_SIZE,\
-    number_of_body_parts, number_of_keypoints, SIGMA, mask_downsampling_factor,\
-    colors
+from training import create_res_u_net_model, IMAGE_SIZE,\
+    NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, SIGMA, MASK_DOWNSAMPLING_FACTOR,\
+    colors_np
 import numpy as np
 from tensorflow.python.keras.applications import imagenet_utils
 import scipy.ndimage.filters as fi
 import math
-"""
+
 ankleRight = 0
 kneeRight = 1
 hipRight = 2
@@ -210,7 +204,7 @@ def extract_body_parts_and_keypoints(model, image):
     result = model.predict(image_np)
     first_result = result[0]
 
-    for i in range(number_of_body_parts + 1, number_of_keypoints + number_of_body_parts + 1):
+    for i in range(NUMBER_OF_BODY_PARTS + 1, NUMBER_OF_KEYPOINTS + NUMBER_OF_BODY_PARTS + 1):
         squeezed_mask = first_result[:, :, i].squeeze()
 
         if (squeezed_mask.max() < 0.01):
@@ -223,14 +217,14 @@ def extract_body_parts_and_keypoints(model, image):
         # width = height
         image_resizing_factor = image.width / IMAGE_SIZE 
         
-        x *= (mask_downsampling_factor * image_resizing_factor)
-        y *= (mask_downsampling_factor * image_resizing_factor)
+        x *= (MASK_DOWNSAMPLING_FACTOR * image_resizing_factor)
+        y *= (MASK_DOWNSAMPLING_FACTOR * image_resizing_factor)
         
-        keypoints[i - number_of_body_parts - 1] = [int(x), int(y)]
+        keypoints[i - NUMBER_OF_BODY_PARTS - 1] = [int(x), int(y)]
 
-    predicted_body_part = np.argmax(first_result[:, :, 0:1+number_of_body_parts], axis=2)
+    predicted_body_part = np.argmax(first_result[:, :, 0:1+NUMBER_OF_BODY_PARTS], axis=2)
 
-    for i in range(number_of_body_parts + 1):
+    for i in range(NUMBER_OF_BODY_PARTS + 1):
         body_part_mask = (predicted_body_part == i).astype(int)
         body_part_mask_image = Image.fromarray(np.uint8(body_part_mask * 255), "L")
         body_part_mask_image = body_part_mask_image.resize(image.size, Image.NEAREST)
@@ -264,8 +258,8 @@ def visualize_keypoints_and_bones(image, keypoints):
 def visualize_body_parts(image, body_part_masks):
     body_parts = Image.new("RGB", image.size)
     
-    for i in range(number_of_body_parts + 1):
-        color = colors[i]
+    for i in range(NUMBER_OF_BODY_PARTS + 1):
+        color = colors_np[i].item()
         mask_layer = Image.new("RGB", image.size, color)
         body_parts.paste(mask_layer, body_part_masks[i])
         
@@ -373,7 +367,7 @@ def dummy_inference(input_folder, image):
     
     mask = mask.getchannel(1) 
     
-    mask_np = np.zeros((mask.height, mask.width, number_of_body_parts + 1), dtype=np.float32)
+    mask_np = np.zeros((mask.height, mask.width, NUMBER_OF_BODY_PARTS + 1), dtype=np.float32)
     
     for x in range(mask.width):
         for y in range(mask.height):
@@ -397,7 +391,7 @@ def dummy_inference(input_folder, image):
             
     body_part_masks = []
     
-    for i in range(number_of_body_parts + 1):
+    for i in range(NUMBER_OF_BODY_PARTS + 1):
         squeezed_mask = mask_np[:,:,i].squeeze()
         squeezed_mask_image = Image.fromarray(np.uint8(squeezed_mask * 255), "L")
         body_part_masks.append(squeezed_mask_image)
