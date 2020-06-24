@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 import scipy.ndimage.filters as fi
 from tensorflow.python.keras.layers import Conv2D, Conv2DTranspose, Add, BatchNormalization, Activation
-from tensorflow.python.keras.models import Model
+from tensorflow.python.keras.models import Model, load_model
 from tensorflow.python.keras.callbacks import CSVLogger, ModelCheckpoint
 from tensorflow.python.keras.utils import Sequence
 from tensorflow.python.keras.callbacks import TensorBoard
@@ -20,15 +20,15 @@ from keras_applications.resnet50 import ResNet50
 
 
 MASK_CHANNEL = 0
-TRAIN_IMAGE_FOLDER = r"E:\CNN\masks\data\figures\real\images"
+TRAIN_IMAGE_FOLDER = r"E:\CNN\masks\data\figures\mixed\images"
 TEST_IMAGE_FOLDER = r"E:\CNN\masks\data\figures\test\images"
 
 MODEL_NAME = "bodyparts_res_unet.hdf5"
 
-LOG_FOLDER = r"E:\CNN\logs\body_parts\real"
+LOG_FOLDER = r"E:\CNN\logs\body_parts\mixed"
 
 # train only with 10 images
-DEBUG = True
+DEBUG = False
 
 NUMBER_OF_KEYPOINTS = 16
 NUMBER_OF_BODY_PARTS = 6
@@ -67,7 +67,7 @@ if (DEBUG):
     epochs = 1000
 else:
     batch_size = 15
-    epochs = 10
+    epochs = 20
 
 colors_np = np.array([
     (255, 255, 255),
@@ -180,7 +180,7 @@ class DataGenerator(Sequence):
             
             stacked_masks = np.concatenate([body_parts_mask_np, keypoint_mask], axis=2)
             
-            
+            """
             mirror_image = random.choice([True, False])
             
             if (mirror_image and not DEBUG):                
@@ -189,7 +189,7 @@ class DataGenerator(Sequence):
                 
                 # swap left and right parts
                 stacked_masks = stacked_masks[..., mirrored_masks]
-                
+            """   
             source[i,] = image_np
             target[i,] = stacked_masks
 
@@ -279,7 +279,7 @@ def train(model):
         checkpoint = ModelCheckpoint(LOG_FOLDER + "/weights.hdf5", save_weights_only=True, 
                                      monitor='val_loss', mode="min", verbose=1, save_best_only=True, period=1)
         
-        tensorboard_callback = TensorBoard(LOG_FOLDER=LOG_FOLDER, histogram_freq=5)
+        tensorboard_callback = TensorBoard(log_dir=LOG_FOLDER, histogram_freq=5)
         
         model.fit_generator(
             training_data_gen,
@@ -305,7 +305,7 @@ def predict(model, image):
 
     detected_keypoints = {}
 
-    for i in range(keypoint_index, NUMBER_OF_KEYPOINTS + NUMBER_OF_BODY_PARTS + 1):
+    for i in range(keypoint_index, output_channels - 1):
         squeezed_mask = result[0][:, :, i].squeeze()
     
         if (squeezed_mask.max() < 0.01):
@@ -388,6 +388,7 @@ if __name__ == '__main__':
     model = create_res_u_net_model()
     # model.load_weights(os.path.join(LOG_FOLDER, "weights.hdf5"))
     
+    # model = load_model(os.path.join(LOG_FOLDER, MODEL_NAME), custom_objects={'custom_metric': custom_metric})
     model = train(model)
     
     
