@@ -1,6 +1,7 @@
 numpy==1.16.4
 tensorflow==1.13.1
 tensorflow-gpu==1.13.1
+scipy
 pillow
 pydot
 Cython

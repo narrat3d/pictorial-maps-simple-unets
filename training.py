@@ -51,7 +51,7 @@ def mkdir_if_not_exists(file_path):
     if (not os.path.exists(file_path)):
         os.mkdir(file_path)
 
-list(map(mkdir_if_not_exists, [keypoint_output_folder, mask_output_folder]))
+list(map(mkdir_if_not_exists, [LOG_FOLDER, keypoint_output_folder, mask_output_folder]))
 
 keypoint_index = 1 + NUMBER_OF_BODY_PARTS
 output_channels = 1 + NUMBER_OF_BODY_PARTS + NUMBER_OF_KEYPOINTS + 1
