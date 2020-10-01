@@ -11,7 +11,6 @@ from tensorflow.python.keras.layers import Conv2D, Conv2DTranspose, Add, BatchNo
 from tensorflow.python.keras.models import Model, load_model
 from tensorflow.python.keras.callbacks import CSVLogger, ModelCheckpoint
 from tensorflow.python.keras.utils import Sequence
-from tensorflow.python.keras.callbacks import TensorBoard
 from tensorflow.python.keras.losses import categorical_crossentropy
 from tensorflow.python.keras import backend as K, layers, models, utils
 from tensorflow.python.keras.applications import imagenet_utils
@@ -20,12 +19,12 @@ from keras_applications.resnet50 import ResNet50
 
 
 MASK_CHANNEL = 0
-TRAIN_IMAGE_FOLDER = r"E:\CNN\masks\data\figures\mixed\images"
-TEST_IMAGE_FOLDER = r"E:\CNN\masks\data\figures\test\images"
+TRAIN_IMAGE_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\real_train_eval\train\images"
+TEST_IMAGE_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\real_train_eval\eval\images"
 
 MODEL_NAME = "bodyparts_res_unet.hdf5"
 
-LOG_FOLDER = r"E:\CNN\logs\body_parts\mixed"
+LOG_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\real_new"
 
 # train only with 10 images
 DEBUG = False
@@ -64,10 +63,10 @@ mirrored_masks = [0] + mirrored_body_parts + mirrored_joints
 
 if (DEBUG):
     batch_size = 10
-    epochs = 1000
+    epochs = 300
 else:
-    batch_size = 15
-    epochs = 20
+    batch_size = 20
+    epochs = 10
 
 colors_np = np.array([
     (255, 255, 255),
@@ -135,8 +134,8 @@ class DataGenerator(Sequence):
             resized_image_np = np.asarray(resized_image, dtype=np.float32)
             
             image_np = resized_image_np[:, :, 0:3]
-            image_np = imagenet_utils.preprocess_input(image_np, mode="tf")
-                  
+            image_np = imagenet_utils.preprocess_input(image_np)
+                        
             mask_file_path = image_file_path.replace("images", "masks").replace(".jpg", ".png")
             mask = Image.open(mask_file_path)
             mask = mask.getchannel(MASK_CHANNEL)
@@ -147,7 +146,7 @@ class DataGenerator(Sequence):
             reclassified_mask_np = np.asarray(reclassified_mask, dtype=np.int32)
             
             # source: https://stackoverflow.com/questions/29831489/convert-array-of-indices-to-1-hot-encoded-numpy-array
-            body_parts_mask_np = np.eye(NUMBER_OF_BODY_PARTS + 1)[reclassified_mask_np]
+            body_parts_mask_np = np.eye(NUMBER_OF_BODY_PARTS + 1, dtype=np.float32)[reclassified_mask_np]
             
             keypoint_mask = np.zeros((mask_size, mask_size, NUMBER_OF_KEYPOINTS + 1), dtype=np.float32) 
 
@@ -177,8 +176,10 @@ class DataGenerator(Sequence):
                                          np.ones((mask_size, mask_size), dtype=np.float32))
                             
             keypoint_mask[:, :, NUMBER_OF_KEYPOINTS] = np.ones((mask_size, mask_size), dtype=np.float32) - keypoint_summed
-            
+                        
             stacked_masks = np.concatenate([body_parts_mask_np, keypoint_mask], axis=2)
+            
+
             
             """
             mirror_image = random.choice([True, False])
@@ -206,8 +207,8 @@ def conv(filters, strides, name, x):
 
 
 def deconv_add(filters, stage, x, y):
-    x = Conv2DTranspose(filters, (4, 4), strides=(2, 2), padding='same', 
-                        name="block%s_deconv" % stage, kernel_initializer='he_normal')(x) 
+    x = Conv2DTranspose(filters, (3, 3), strides=(2, 2), padding='same', 
+                        name="block%s_deconv" % stage, kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)  
     x = Activation('relu')(x)
     
@@ -279,13 +280,11 @@ def train(model):
         checkpoint = ModelCheckpoint(LOG_FOLDER + "/weights.hdf5", save_weights_only=True, 
                                      monitor='val_loss', mode="min", verbose=1, save_best_only=True, period=1)
         
-        tensorboard_callback = TensorBoard(log_dir=LOG_FOLDER, histogram_freq=5)
-        
         model.fit_generator(
             training_data_gen,
             epochs = epochs,
             validation_data=validation_data_gen,
-            callbacks=[csv_logger, checkpoint, tensorboard_callback]
+            callbacks=[csv_logger, checkpoint]
         )
     
     return model
@@ -296,7 +295,7 @@ def predict(model, image):
     
     image_np = np.asarray(resized_image, dtype=np.float32)
     image_np = image_np[:, :, 0:3]
-    image_np = imagenet_utils.preprocess_input(image_np, mode="tf")
+    image_np = imagenet_utils.preprocess_input(image_np)
     image_np = np.expand_dims(image_np, axis=0)
     
     result = model.predict(image_np)
@@ -337,7 +336,7 @@ def scale_keypoints(keypoints, scale):
 
 def predict_single_image(model, image_path):
     image_file_name = os.path.basename(image_path)  
-    print(image_file_name)
+    # print(image_file_name)
     
     image_name_without_ext, _ = os.path.splitext(image_file_name)
         
@@ -388,7 +387,7 @@ if __name__ == '__main__':
     model = create_res_u_net_model()
     # model.load_weights(os.path.join(LOG_FOLDER, "weights.hdf5"))
     
-    # model = load_model(os.path.join(LOG_FOLDER, MODEL_NAME), custom_objects={'custom_metric': custom_metric})
+    # model = load_model(os.path.join(LOG_FOLDER, MODEL_NAME), custom_objects={'custom_metric': custom_metric}) # 
     model = train(model)
     
     
