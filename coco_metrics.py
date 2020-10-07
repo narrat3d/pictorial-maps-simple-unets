@@ -21,9 +21,9 @@ import os
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as COCOmask
-import skimage.io as io
-import matplotlib.pyplot as plt
-from training import NUMBER_OF_BODY_PARTS, MASK_CHANNEL
+# import skimage.io as io
+# import matplotlib.pyplot as plt
+from config import NUMBER_OF_BODY_PARTS, MASK_CHANNEL
 
 # source: https://github.com/facebookresearch/Detectron/issues/640
 KEYPOINT_MAPPING = {
@@ -60,6 +60,7 @@ def add_ground_truth(coco_ground_truth_path):
 
 
 # for debugging one single image
+"""
 def show_ground_truth(input_image_path, output_image_path, keypoints_ground_truth_path, masks_ground_truth_path):
     I = io.imread(input_image_path)
     plt.axis('off')
@@ -69,7 +70,7 @@ def show_ground_truth(input_image_path, output_image_path, keypoints_ground_trut
     add_ground_truth(masks_ground_truth_path)
     
     plt.savefig(output_image_path)
-
+"""
 
 def load_coco_data(file_path):
     coco_data = json.load(open(file_path))
@@ -146,7 +147,7 @@ def calculate_results(coco_ground_truth_path, coco_results_path, ann_type):
     cocoEval.accumulate()
     cocoEval.summarize()
     
-    print(cocoEval.stats)
+    return round(cocoEval.stats[0] * 100, 2) # average precision
 
 
 def create_keypoint_result_file(keypoints_ground_truth_path, output_folder):
@@ -201,15 +202,24 @@ def create_mask_result_file(masks_ground_truth_path, output_folder):
     return results_mask_file_path
 
 
-if __name__ == '__main__':    
-    keypoints_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_keypoints.json"
-    keypoints_results_folder = r"E:\CNN\logs\body_parts\real\keypoints"
+def main(ground_truth_folder, results_folder):
+    keypoints_ground_truth_path = os.path.join(ground_truth_folder, "coco_keypoints.json")
+    masks_ground_truth_path = os.path.join(ground_truth_folder, "coco_masks.json")
     
-    masks_ground_truth_path = r"E:\CNN\masks\data\figures\real\coco_masks.json"
-    masks_results_folder = r"E:\CNN\logs\body_parts\real\masks"
+    keypoints_results_folder = os.path.join(results_folder, "keypoints")
+    masks_results_folder = os.path.join(results_folder, "masks")
     
     keypoints_results_path = create_keypoint_result_file(keypoints_ground_truth_path, keypoints_results_folder)
-    calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
+    keypoints_avarage_precision = calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
     
     masks_results_path = create_mask_result_file(masks_ground_truth_path, masks_results_folder)
-    calculate_results(masks_ground_truth_path, masks_results_path, "segm")
+    masks_avarage_precision = calculate_results(masks_ground_truth_path, masks_results_path, "segm")
+    
+    return [keypoints_avarage_precision, masks_avarage_precision]
+
+
+if __name__ == '__main__':
+    ground_truth_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\test"
+    results_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\mixed"
+    
+    main(ground_truth_folder, results_folder)

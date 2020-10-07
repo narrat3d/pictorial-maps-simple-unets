@@ -17,7 +17,7 @@ alternative metrics to COCO
 import math
 import json
 from PIL import Image
-from training import NUMBER_OF_KEYPOINTS, NUMBER_OF_BODY_PARTS, MASK_CHANNEL
+from config import NUMBER_OF_KEYPOINTS, NUMBER_OF_BODY_PARTS, MASK_CHANNEL
 import numpy as np
 import os
 
@@ -55,7 +55,7 @@ def avg(errors):
     for error in errors:
         error_sum += error
         
-    return error_sum / len(errors)
+    return round(error_sum / len(errors), 2)
 
 
 def add_keypoints_error(gt_keypoints, detected_keypoints, image_size, keypoint_errors):
@@ -137,7 +137,7 @@ def evaluate_single_image(ground_truth_folder, results_folder, image_name, keypo
     add_keypoints_error(gt_keypoints, detected_keypoints, image_size, keypoint_errors)
 
     
-def evaluate(ground_truth_folder, results_folder): 
+def main(ground_truth_folder, results_folder): 
     keypoint_errors = {}
     body_part_errors = {}
     
@@ -153,19 +153,32 @@ def evaluate(ground_truth_folder, results_folder):
         evaluate_single_image(ground_truth_folder, results_folder, image_name, keypoint_errors, body_part_errors)    
     
     print("Body part errors:")
+    all_body_part_errors = []   
     
     for i in range(NUMBER_OF_BODY_PARTS):
         body_part_name = BODY_PART_NAMES[i]
-        rounded_error = round(avg(body_part_errors[i]) * 100, 2)
+        rounded_error = avg(body_part_errors[i]) * 100
         print (body_part_name, rounded_error)
+        all_body_part_errors.append(rounded_error)
+    
+    avg_body_parts_error = avg(all_body_part_errors)
+    print("average:", avg_body_parts_error)
     
     print()
     print("Keypoint errors:")
+    all_keypoint_errors = []
     
     for i in range(NUMBER_OF_KEYPOINTS):
         keypoint_name = KEYPOINT_NAMES[i]
-        rounded_error = round(avg(keypoint_errors[i]) * 100, 2)
+        rounded_error = avg(keypoint_errors[i]) * 100
         print (keypoint_name, rounded_error)
+        all_keypoint_errors.append(rounded_error)
+    
+    avg_keypoint_error = avg(all_keypoint_errors)
+    print("average:", avg_keypoint_error)
+    
+    return [avg_keypoint_error, avg_body_parts_error]
         
 if __name__ == '__main__':
-    evaluate(r"E:\CNN\masks\data\figures\real", r"E:\CNN\logs\body_parts\real")
+    main(r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\test", 
+         r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\real_128px_deconv4x4")

@@ -2,6 +2,7 @@ import os
 import json
 import math
 import random
+import shutil
 from datetime import datetime
 from timeit import default_timer as timer
 from PIL import Image, ImageDraw
@@ -17,48 +18,23 @@ from tensorflow.python.keras.applications import imagenet_utils
 from tensorflow.python.keras.optimizers import RMSprop
 from keras_applications.resnet50 import ResNet50
 
+from config import NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
+    NUMBER_OF_CHANNELS, KEYPOINT_INDEX, MIRRORED_CHANNELS, mkdir_if_not_exists
+import evaluation
+import coco_metrics
 
-MASK_CHANNEL = 0
-TRAIN_IMAGE_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\real_train_eval\train\images"
-TEST_IMAGE_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\real_train_eval\eval\images"
 
 MODEL_NAME = "bodyparts_res_unet.hdf5"
 
-LOG_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\real_new"
-
-# train only with 10 images
 DEBUG = False
-
-NUMBER_OF_KEYPOINTS = 16
-NUMBER_OF_BODY_PARTS = 6
-
-MIRRORED_BODY_PARTS = [0, 1, 5, 4, 3, 2]
-MIRRORED_JOINTS = [5, 4, 3, 2, 1, 0, 6, 7, 8, 9, 15, 14, 13, 12, 11, 10]
+MIRROR_IMAGES = True
 
 # input height and width for images into the network
-IMAGE_SIZE = 256
+IMAGE_SIZE = 128
 # e.g. factor of 2 leads to predicted masks of size 128px
 MASK_DOWNSAMPLING_FACTOR = 2
 # standard deviation of gaussian kernel for creating keypoint heatmaps
 SIGMA = 2
-
-
-keypoint_output_folder = os.path.join(LOG_FOLDER, "keypoints")
-mask_output_folder = os.path.join(LOG_FOLDER, "masks")
-
-def mkdir_if_not_exists(file_path):
-    if (not os.path.exists(file_path)):
-        os.mkdir(file_path)
-
-list(map(mkdir_if_not_exists, [LOG_FOLDER, keypoint_output_folder, mask_output_folder]))
-
-keypoint_index = 1 + NUMBER_OF_BODY_PARTS
-output_channels = 1 + NUMBER_OF_BODY_PARTS + NUMBER_OF_KEYPOINTS + 1
-
-mirrored_body_parts = list(map(lambda x: x + 1, MIRRORED_BODY_PARTS))
-mirrored_joints = list(map(lambda x: x + 1 + len(mirrored_body_parts), MIRRORED_JOINTS))
-
-mirrored_masks = [0] + mirrored_body_parts + mirrored_joints
 
 
 if (DEBUG):
@@ -66,7 +42,7 @@ if (DEBUG):
     epochs = 300
 else:
     batch_size = 20
-    epochs = 10
+    epochs = 20
 
 colors_np = np.array([
     (255, 255, 255),
@@ -126,7 +102,7 @@ class DataGenerator(Sequence):
         image_size = int(self.img_size)
         
         source = np.empty((self.batch_size, self.img_size, self.img_size, 3), dtype=np.float32)
-        target = np.zeros((self.batch_size, mask_size, mask_size, output_channels), dtype=np.float32)
+        target = np.zeros((self.batch_size, mask_size, mask_size, NUMBER_OF_CHANNELS), dtype=np.float32)
 
         for i, image_file_path in enumerate(image_file_paths):
             image = Image.open(image_file_path)
@@ -180,17 +156,15 @@ class DataGenerator(Sequence):
             stacked_masks = np.concatenate([body_parts_mask_np, keypoint_mask], axis=2)
             
 
-            
-            """
             mirror_image = random.choice([True, False])
             
-            if (mirror_image and not DEBUG):                
+            if (MIRROR_IMAGES and mirror_image and not DEBUG):                
                 image_np = np.fliplr(image_np)                
                 stacked_masks = np.fliplr(stacked_masks)
                 
                 # swap left and right parts
-                stacked_masks = stacked_masks[..., mirrored_masks]
-            """   
+                stacked_masks = stacked_masks[..., MIRRORED_CHANNELS]
+ 
             source[i,] = image_np
             target[i,] = stacked_masks
 
@@ -207,7 +181,7 @@ def conv(filters, strides, name, x):
 
 
 def deconv_add(filters, stage, x, y):
-    x = Conv2DTranspose(filters, (3, 3), strides=(2, 2), padding='same', 
+    x = Conv2DTranspose(filters, (4, 4), strides=(2, 2), padding='same', 
                         name="block%s_deconv" % stage, kernel_initializer='he_normal')(x)
     x = BatchNormalization()(x)  
     x = Activation('relu')(x)
@@ -233,21 +207,21 @@ def create_res_u_net_model():
     x = deconv_add(256, 3, x, model.get_layer("activation_9").output) # 64px
     x = deconv_add(128, 2, x, y) # 128px
 
-    keypoints_detected = Conv2D(output_channels, kernel_size=(1, 1), padding="same", 
+    keypoints_detected = Conv2D(NUMBER_OF_CHANNELS, kernel_size=(1, 1), padding="same", 
                                 activation='sigmoid', name="keypoints")(x)
     
     return Model(inputs=model.input, outputs=keypoints_detected)
 
 
 def custom_metric(ytrue, ypred):    
-    d = (1-ytrue[:, :, :, 0])*categorical_crossentropy(ytrue[..., 0:keypoint_index], ypred[..., 0:keypoint_index])
-    e = categorical_crossentropy(ytrue[..., keypoint_index:output_channels], ypred[..., keypoint_index:output_channels])
+    d = (1-ytrue[:, :, :, 0])*categorical_crossentropy(ytrue[..., 0:KEYPOINT_INDEX], ypred[..., 0:KEYPOINT_INDEX])
+    e = categorical_crossentropy(ytrue[..., KEYPOINT_INDEX:NUMBER_OF_CHANNELS], ypred[..., KEYPOINT_INDEX:NUMBER_OF_CHANNELS])
        
     return d + e
     
     
-def train(model):
-    training_data_gen = DataGenerator(TRAIN_IMAGE_FOLDER, batch_size, IMAGE_SIZE)
+def train(model, train_image_folder, test_image_folder, log_folder):
+    training_data_gen = DataGenerator(train_image_folder, batch_size, IMAGE_SIZE)
     
     model.summary()
     
@@ -257,7 +231,7 @@ def train(model):
     
     if (DEBUG):
         from tensorflow.python.keras.utils import plot_model
-        plot_model(model, to_file=LOG_FOLDER + '/' + MODEL_NAME + '.png', show_shapes=True)
+        plot_model(model, to_file=log_folder + '/' + MODEL_NAME + '.png', show_shapes=True)
         
         start = timer()
 
@@ -266,19 +240,19 @@ def train(model):
             epochs = epochs
         )
         
-        model.save(os.path.join(LOG_FOLDER, MODEL_NAME))
+        model.save(os.path.join(log_folder, MODEL_NAME))
         
         end = timer()
         print("Elapsed time:", end - start)
         
     else:
-        validation_data_gen = DataGenerator(TEST_IMAGE_FOLDER, batch_size, IMAGE_SIZE)
+        validation_data_gen = DataGenerator(test_image_folder, batch_size, IMAGE_SIZE)
         
         current_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        csv_logger = CSVLogger(LOG_FOLDER + '/training_%s_%s.csv' % (MODEL_NAME, current_time))
+        csv_logger = CSVLogger(log_folder + '/training_%s_%s.csv' % (MODEL_NAME, current_time), ";")
     
-        checkpoint = ModelCheckpoint(LOG_FOLDER + "/weights.hdf5", save_weights_only=True, 
-                                     monitor='val_loss', mode="min", verbose=1, save_best_only=True, period=1)
+        checkpoint = ModelCheckpoint(log_folder + "/weights.hdf5", save_weights_only=True, 
+                                     monitor='val_mean_squared_error', mode="min", verbose=1, save_best_only=True, period=1)
         
         model.fit_generator(
             training_data_gen,
@@ -300,11 +274,11 @@ def predict(model, image):
     
     result = model.predict(image_np)
 
-    predicted_body_parts = np.argmax(result[0][:, :, 0:keypoint_index], axis=2)
+    predicted_body_parts = np.argmax(result[0][:, :, 0:KEYPOINT_INDEX], axis=2)
 
     detected_keypoints = {}
 
-    for i in range(keypoint_index, output_channels - 1):
+    for i in range(KEYPOINT_INDEX, NUMBER_OF_CHANNELS - 1):
         squeezed_mask = result[0][:, :, i].squeeze()
     
         if (squeezed_mask.max() < 0.01):
@@ -317,7 +291,7 @@ def predict(model, image):
         x *= (MASK_DOWNSAMPLING_FACTOR)
         y *= (MASK_DOWNSAMPLING_FACTOR)
         
-        detected_keypoints[i - keypoint_index] = [x, y]
+        detected_keypoints[i - KEYPOINT_INDEX] = [x, y]
 
     return detected_keypoints, predicted_body_parts, resized_image
 
@@ -334,7 +308,7 @@ def scale_keypoints(keypoints, scale):
     return scaled_keypoints
 
 
-def predict_single_image(model, image_path):
+def predict_single_image(model, image_path, keypoint_output_folder, mask_output_folder):
     image_file_name = os.path.basename(image_path)  
     # print(image_file_name)
     
@@ -381,22 +355,73 @@ def predict_single_image(model, image_path):
     
     keypoints_file_path = os.path.join(keypoint_output_folder, image_name_without_ext + ".json")
     json.dump(scaled_detected_keypoints, open(keypoints_file_path, "w"))
+
+
+def calculate_metrics(test_folder, log_folder):
+    [keypoints_error, body_parts_error] = evaluation.main(test_folder, log_folder)
+    [keypoints_precision, body_parts_precision] = coco_metrics.main(test_folder, log_folder)
+    
+    metrics_string = ""
+    metrics_string += "Keypoints error: %s\n" % keypoints_error
+    metrics_string += "Body parts error: %s\n" % body_parts_error
+    metrics_string += "\n"
+    metrics_string += "Keypoints precision: %s\n" % keypoints_precision
+    metrics_string += "Body parts precision: %s\n" % body_parts_precision
+    
+    print()
+    print(metrics_string)
+    metrics_file_path = os.path.join(log_folder, "metrics.txt")
+    
+    with open(metrics_file_path, "w") as metrics_file:
+        metrics_file.write(metrics_string)
+    
+
+
+def main(train_folder, test_folder, log_folder):
+    train_image_folder = os.path.join(train_folder, "images")
+    test_image_folder = os.path.join(test_folder, "images")
+    
+    keypoint_output_folder = os.path.join(log_folder, "keypoints")
+    mask_output_folder = os.path.join(log_folder, "masks")
+    
+    list(map(mkdir_if_not_exists, [log_folder, keypoint_output_folder, mask_output_folder]))
+        
+    model = create_res_u_net_model()
+    # model.load_weights(os.path.join(log_folder, "weights.hdf5"))
+    
+    # model = load_model(os.path.join(LOG_FOLDER, MODEL_NAME), custom_objects={'custom_metric': custom_metric}) # 
+    model = train(model, train_image_folder, test_image_folder, log_folder)
+    
+    if (DEBUG):
+        image_folder = train_image_folder
+        image_names = os.listdir(train_image_folder)[:10]      
+    else :
+        image_folder = test_image_folder
+        image_names = os.listdir(test_image_folder)
+
+    for image_name in image_names:
+        predict_single_image(model, os.path.join(image_folder, image_name),
+                             keypoint_output_folder, mask_output_folder)
+    
+    # needed otherwise getting layers by name will result in an error
+    # as numbers are added incrementally
+    K.reset_uids()
+    
+    # store this configuration
+    path_of_this_file = os.path.abspath(__file__)
+    shutil.copy(path_of_this_file, log_folder)
+    
+    if (not DEBUG):
+        calculate_metrics(test_folder, log_folder)
     
     
 if __name__ == '__main__':
-    model = create_res_u_net_model()
-    # model.load_weights(os.path.join(LOG_FOLDER, "weights.hdf5"))
+    datasets = ["real"]
     
-    # model = load_model(os.path.join(LOG_FOLDER, MODEL_NAME), custom_objects={'custom_metric': custom_metric}) # 
-    model = train(model)
+    test_image_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\test"
     
-    
-    if (DEBUG):
-        image_folder = TRAIN_IMAGE_FOLDER
-        image_names = os.listdir(TRAIN_IMAGE_FOLDER)[:10]      
-    else :
-        image_folder = TEST_IMAGE_FOLDER
-        image_names = os.listdir(TEST_IMAGE_FOLDER)
+    for dataset in datasets:
+        train_image_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\%s" % dataset
+        log_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\%s_mirrored" % dataset
         
-    for image_name in image_names:
-        predict_single_image(model, os.path.join(image_folder, image_name))
+        main(train_image_folder, test_image_folder, log_folder)

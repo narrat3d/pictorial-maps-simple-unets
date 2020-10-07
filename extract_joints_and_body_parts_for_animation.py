@@ -277,7 +277,7 @@ def res_u_net_results(character_folder, res_u_net_model):
     json.dump(keypoints, open(keypoints_json_path, "w"))
     
     image_with_keypoints = visualize_keypoints_and_bones(character_image, keypoints)
-    image_with_keypoints.save(os.path.join(character_folder, "image_with_keypoints.png"))
+    image_with_keypoints.save(os.path.join(character_folder, "images_with_keypoints.png"))
     
     body_parts = visualize_body_parts(character_image, body_part_masks)
     body_parts.save(os.path.join(character_folder, "mask.png"))
