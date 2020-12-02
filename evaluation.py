@@ -55,7 +55,7 @@ def avg(errors):
     for error in errors:
         error_sum += error
         
-    return round(error_sum / len(errors), 2)
+    return error_sum / len(errors)
 
 
 def add_keypoints_error(gt_keypoints, detected_keypoints, image_size, keypoint_errors):
@@ -161,7 +161,7 @@ def main(ground_truth_folder, results_folder):
         print (body_part_name, rounded_error)
         all_body_part_errors.append(rounded_error)
     
-    avg_body_parts_error = avg(all_body_part_errors)
+    avg_body_parts_error = round(avg(all_body_part_errors), 2)
     print("average:", avg_body_parts_error)
     
     print()
@@ -174,7 +174,7 @@ def main(ground_truth_folder, results_folder):
         print (keypoint_name, rounded_error)
         all_keypoint_errors.append(rounded_error)
     
-    avg_keypoint_error = avg(all_keypoint_errors)
+    avg_keypoint_error = round(avg(all_keypoint_errors), 2)
     print("average:", avg_keypoint_error)
     
     return [avg_keypoint_error, avg_body_parts_error]

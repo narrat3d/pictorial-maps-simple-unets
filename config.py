@@ -1,5 +1,8 @@
 import os
 
+WEIGHTS_FILE_NAME = "weights.hdf5"
+CSV_LOG_FILE_NAME = "training.csv"
+PLOT_FILE_NAME = "plot.png"
 
 MASK_CHANNEL = 0
 NUMBER_OF_KEYPOINTS = 16
@@ -17,6 +20,12 @@ MIRRORED_JOINTS = list(map(lambda x: x + 1 + len(MIRRORED_BODY_PARTS), MIRRORED_
 
 MIRRORED_CHANNELS = [0] + MIRRORED_BODY_PARTS + MIRRORED_JOINTS + [23]
 
+RUNS = ["1st", "2nd", "3rd"] # "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11st", "12nd"
+DATASETS = ["real", "mixed", "synthetic"]
+
+DATASET_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data"
+LOG_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\comparison"
+TEST_DATASET = "test"
 
 def mkdir_if_not_exists(file_path):
     if (not os.path.exists(file_path)):
