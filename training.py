@@ -17,45 +17,23 @@ from tensorflow.python.keras.applications import imagenet_utils
 from tensorflow.python.keras.optimizers import RMSprop
 from keras_applications.resnet50 import ResNet50
 
-from config import WEIGHTS_FILE_NAME, CSV_LOG_FILE_NAME, PLOT_FILE_NAME,\
-    NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
+from config import WEIGHTS_FILE_NAME, CSV_LOG_FILE_NAME, PLOT_LOG_FILE_NAME, \
+    METRICS_LOG_FILE_NAME, NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
     NUMBER_OF_CHANNELS, KEYPOINT_INDEX, MIRRORED_CHANNELS, mkdir_if_not_exists,\
-    DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, TEST_DATASET
+    DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, ARCHITECTURES, TEST_DATASET,\
+    DEBUG, IMAGE_SIZE, MIRROR_IMAGES, MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS
 import evaluation
 import coco_metrics
-
-
-DEBUG = False
-MIRROR_IMAGES = False
-
-# input height and width for images into the network
-IMAGE_SIZE = 128
-# e.g. factor of 2 leads to predicted masks of size 128px
-MASK_DOWNSAMPLING_FACTOR = 2
-# standard deviation of gaussian kernel for creating keypoint heatmaps
-SIGMA = 2
 
 
 if (DEBUG):
     batch_size = 10
     epochs = 300
 else:
-    batch_size = 64
-    epochs = 20
+    batch_size = 15
+    epochs = 15
 
-colors_np = np.array([
-    (255, 255, 255),
-    (255, 215, 0), # torso
-    (255, 119, 255), # head
-    (191, 255, 0), # right arm
-    (255, 0, 0), # right hand
-    (176, 48, 96), # right leg
-    (0, 0, 128), # right foot
-    (255, 228, 196), # left leg
-    (0, 191, 255), # left foot
-    (0, 100, 0), # left arm
-    (0, 0, 0) # left hand
-])
+colors_np = np.array(COLORS)
 
 
 #source: https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
@@ -179,12 +157,18 @@ def conv(filters, strides, name, x, kernel_size=(3, 3)):
     return y
 
 
-def deconv_add(filters, stage, x, *y):
+def deconv(filters, stage, x):
     x = Conv2DTranspose(filters, (4, 4), strides=(2, 2), padding='same', 
                         name="block%s_deconv" % stage, kernel_initializer='he_normal')(x)
     
     x = BatchNormalization()(x)  
     x = Activation('relu')(x)
+
+    return x
+
+
+def deconv_add(filters, stage, x, *y):
+    x = deconv(filters, stage, x)
     
     xy = [x] + list(y)
     
@@ -194,54 +178,48 @@ def deconv_add(filters, stage, x, *y):
     return z
 
 
-def create_res_u_net_model():
+def create_model(architecture):
     image_shape = (IMAGE_SIZE, IMAGE_SIZE, 3)
 
     model = ResNet50(weights='imagenet', include_top=False, pooling='avg', input_shape=image_shape, 
                      backend = K, layers=layers, models=models, utils=utils)
     
-    x = model.get_layer("activation").output
-    x10 = conv(128, (1, 1), "first_conv", x)
+    x00_raw = model.get_layer("activation").output
+    x00 = conv(128, (1, 1), "first_conv", x00_raw)
     
-    x20 = model.get_layer("activation_9").output
-    x30 = model.get_layer("activation_21").output
-    x40 = model.get_layer("activation_39").output
+    x10 = model.get_layer("activation_9").output
+    x20 = model.get_layer("activation_21").output
+    x30 = model.get_layer("activation_39").output
 
-    # U-Net+
-    x11 = deconv_add(128, 11, x20, x10)
-    x21 = deconv_add(256, 21, x30, x20)
-    x31 = deconv_add(512, 31, x40, x30)
 
-    x12 = deconv_add(128, 12, x21, x11)
-    x22 = deconv_add(256, 22, x31, x21)
+    if (architecture == "simple_deconv"):
+        x21 = deconv(512, 21, x30)
+        x12 = deconv(256, 12, x21)
+        x03 = deconv(128, 3, x12)
     
-    x13 = deconv_add(128, 13, x22, x12) 
+    elif (architecture == "simple_unet"):
+        x21 = deconv_add(512, 21, x30, x20)
+        x12 = deconv_add(256, 12, x21, x10)
+        x03 = deconv_add(128, 3, x12, x00)
+        
+    elif (architecture == "simple_unet+"):
+        x21 = deconv_add(512, 21, x30, x20)
+        x11 = deconv_add(256, 11, x20, x10)
+        x12 = deconv_add(256, 12, x21, x11)
+        x01 = deconv_add(128, 1, x10, x00)
+        x02 = deconv_add(128, 2, x11, x01)
+        x03 = deconv_add(128, 3, x12, x02)
     
-    """
-    # U-Net++
-    x12 = deconv_add(128, 12, x21, x11, x10)
-    x22 = deconv_add(256, 22, x31, x21, x20)
+    elif (architecture == "simple_unet++"):
+        x21 = deconv_add(512, 21, x30, x20)
+        x11 = deconv_add(256, 11, x20, x10)
+        x12 = deconv_add(256, 12, x21, x11, x10)
+        x01 = deconv_add(128, 1, x10, x00)
+        x02 = deconv_add(128, 2, x11, x01, x00)
+        x03 = deconv_add(128, 3, x12, x02, x01, x00)
     
-    x13 = deconv_add(128, 13, x22, x12, x11, x10)   
-    """
-    
-    """
-    # using last ResNet stage
-    x50 = model.get_layer("activation_48").output
-    x41 = deconv_add(1024, 41, x50, x40)
-    x32 = deconv_add(512, 32, x41, x31, x30)
-    x23 = deconv_add(256, 23, x32, x22, x21, x20)
-    x14 = deconv_add(128, 14, x23, x13, x12, x11, x10)
-    """
-    
-    """
-    # Simple Baselines
-    x3s = deconv_add(512, 3, x40, x30)
-    x2s = deconv_add(256, 2, x3s, x20)
-    x1s = deconv_add(128, 1, x2s, x10)
-    """
     final_conv = Conv2D(NUMBER_OF_CHANNELS, kernel_size=(1, 1), padding="same", 
-                                activation='sigmoid', name="final_conv")(x13) 
+                        activation='sigmoid', name="final_conv")(x03) 
     
     return Model(inputs=model.input, outputs=final_conv)
 
@@ -262,7 +240,7 @@ def train(model, train_image_folder, test_image_folder, log_folder):
     model.compile(optimizer = RMSprop(), loss = custom_metric, metrics = ["mse"])
     
     from tensorflow.python.keras.utils import plot_model
-    plot_file_path = os.path.join(log_folder, PLOT_FILE_NAME)
+    plot_file_path = os.path.join(log_folder, PLOT_LOG_FILE_NAME)
     plot_model(model, to_file=plot_file_path, show_shapes=True)
     
     weights_file_path = os.path.join(log_folder, WEIGHTS_FILE_NAME)
@@ -394,27 +372,27 @@ def predict_single_image(model, image_path, keypoint_output_folder, mask_output_
 
 def calculate_metrics(test_folder, log_folder):
     [keypoints_error, body_parts_error] = evaluation.main(test_folder, log_folder)
-    [keypoints_precision, body_parts_precision] = coco_metrics.main(test_folder, log_folder)
+    [keypoints_precisions, body_parts_precisions] = coco_metrics.main(test_folder, log_folder)
     
     metrics = {
         "error": {},
-        "precision": {}
+        "coco": {}
     }
     
     metrics["error"]["keypoints"] = keypoints_error
-    metrics["error"]["bodyParts"] = body_parts_error
-    metrics["precision"]["keypoints"] = keypoints_precision
-    metrics["precision"]["bodyParts"] = body_parts_precision
+    metrics["error"]["bodyparts"] = body_parts_error
+    metrics["coco"]["keypoints"] = keypoints_precisions
+    metrics["coco"]["bodyparts"] = body_parts_precisions
     
     print()
     print(metrics)
-    metrics_file_path = os.path.join(log_folder, "metrics.json")
+    metrics_file_path = os.path.join(log_folder, METRICS_LOG_FILE_NAME)
     
     with open(metrics_file_path, "w") as metrics_file:
         json.dump(metrics, metrics_file)
 
 
-def main(train_folder, test_folder, log_folder):
+def main(train_folder, test_folder, log_folder, architecture):
     train_image_folder = os.path.join(train_folder, "images")
     test_image_folder = os.path.join(test_folder, "images")
     
@@ -423,9 +401,9 @@ def main(train_folder, test_folder, log_folder):
     
     list(map(mkdir_if_not_exists, [log_folder, keypoint_output_folder, mask_output_folder]))
         
-    model = create_res_u_net_model()
+    model = create_model(architecture)
     
-    model = train(model, train_image_folder, test_image_folder, log_folder)
+    # model = train(model, train_image_folder, test_image_folder, log_folder)
     model.load_weights(os.path.join(log_folder, WEIGHTS_FILE_NAME))
     
     if (DEBUG):
@@ -454,10 +432,13 @@ def main(train_folder, test_folder, log_folder):
 if __name__ == '__main__':
     test_folder = os.path.join(DATASET_FOLDER, TEST_DATASET)
     
-    for dataset in DATASETS:
-        train_folder = os.path.join(DATASET_FOLDER, dataset)
-        
-        for run in RUNS:
-            log_folder = os.path.join(LOG_FOLDER, "%s_%s" % (dataset, run))
+    for architecture in ARCHITECTURES:
+        for dataset in DATASETS:
+            train_folder = os.path.join(DATASET_FOLDER, dataset)
             
-            main(train_folder, test_folder, log_folder)
+            for run in RUNS:
+                results_folder = os.path.join(LOG_FOLDER, architecture)
+                mkdir_if_not_exists(results_folder)
+                log_folder = os.path.join(results_folder, "%s_%s" % (dataset, run))
+                
+                main(train_folder, test_folder, log_folder, architecture)

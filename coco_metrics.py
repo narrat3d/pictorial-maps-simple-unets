@@ -14,7 +14,7 @@ purpose:
 calculate COCO metrics 
 '''
 
-import numpy
+import numpy as np
 from PIL import Image
 import json
 import os
@@ -23,7 +23,7 @@ from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as COCOmask
 # import skimage.io as io
 # import matplotlib.pyplot as plt
-from config import NUMBER_OF_BODY_PARTS, MASK_CHANNEL
+from config import NUMBER_OF_BODY_PARTS, MASK_CHANNEL, METRICS_LOG_FILE_NAME
 
 # source: https://github.com/facebookresearch/Detectron/issues/640
 KEYPOINT_MAPPING = {
@@ -117,7 +117,7 @@ def coco_mask_result(image_id, detected_mask):
         mask = detected_mask.copy()
         binary_mask = mask.point(lambda p: (p == i and 1) or 0)
         
-        mask_np = numpy.asfortranarray(binary_mask)
+        mask_np = np.asfortranarray(binary_mask)
         
         mask_rle = COCOmask.encode(mask_np)
         mask_rle["counts"] = mask_rle["counts"].decode('utf-8')
@@ -147,7 +147,7 @@ def calculate_results(coco_ground_truth_path, coco_results_path, ann_type):
     cocoEval.accumulate()
     cocoEval.summarize()
     
-    return round(cocoEval.stats[0] * 100, 2) # average precision
+    return (cocoEval.stats * 100).tolist()[0:6]
 
 
 def create_keypoint_result_file(keypoints_ground_truth_path, output_folder):
@@ -202,6 +202,40 @@ def create_mask_result_file(masks_ground_truth_path, output_folder):
     return results_mask_file_path
 
 
+def aggregate_results(log_folder):
+    result_folders = os.listdir(log_folder)
+    
+    aggregated_results = {}
+
+    for result_folder in result_folders:
+        dataset_name = result_folder.split("_")[0]
+        results_for_dataset = aggregated_results.setdefault(dataset_name, {})
+        keypoint_results_for_dataset = results_for_dataset.setdefault("keypoints", [])
+        bodypart_results_for_dataset = results_for_dataset.setdefault("bodyparts", [])
+        
+        metrics_log_file_path = os.path.join(log_folder, result_folder, METRICS_LOG_FILE_NAME)
+        
+        with open(metrics_log_file_path) as metrics_log_file:
+            logged_metrics = json.load(metrics_log_file)
+            
+        keypoint_results_for_dataset.append(logged_metrics["coco"]["keypoints"])
+        bodypart_results_for_dataset.append(logged_metrics["coco"]["bodyparts"])
+    
+    for dataset in aggregated_results:
+        print (dataset)
+        
+        for task in ["keypoints", "bodyparts"]:
+            results_array = aggregated_results[dataset][task]
+                        
+            results_array.sort(key=lambda array: array[0])
+            filtered_results_array = results_array[1:-1]
+            
+            average_results = np.mean(np.array(filtered_results_array), axis=0).tolist()
+            
+            average_results_string = "\t".join(map(lambda result: str(round(result, 2)) + "%", average_results))
+            print (average_results_string)
+
+
 def main(ground_truth_folder, results_folder):
     keypoints_ground_truth_path = os.path.join(ground_truth_folder, "coco_keypoints.json")
     masks_ground_truth_path = os.path.join(ground_truth_folder, "coco_masks.json")
@@ -210,16 +244,21 @@ def main(ground_truth_folder, results_folder):
     masks_results_folder = os.path.join(results_folder, "masks")
     
     keypoints_results_path = create_keypoint_result_file(keypoints_ground_truth_path, keypoints_results_folder)
-    keypoints_avarage_precision = calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
+    keypoints_avarage_precisions = calculate_results(keypoints_ground_truth_path, keypoints_results_path, "keypoints")
     
     masks_results_path = create_mask_result_file(masks_ground_truth_path, masks_results_folder)
-    masks_avarage_precision = calculate_results(masks_ground_truth_path, masks_results_path, "segm")
+    masks_avarage_precisions = calculate_results(masks_ground_truth_path, masks_results_path, "segm")
     
-    return [keypoints_avarage_precision, masks_avarage_precision]
+    return [keypoints_avarage_precisions, masks_avarage_precisions]
 
 
 if __name__ == '__main__':
+    r"""
     ground_truth_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\test"
-    results_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\mixed"
+    results_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\unet++\mixed_1st"
     
-    main(ground_truth_folder, results_folder)
+    metrics = main(ground_truth_folder, results_folder)
+    print(metrics)
+    """
+    log_folder = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\unet++"
+    aggregate_results(log_folder)
