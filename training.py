@@ -21,7 +21,8 @@ from config import WEIGHTS_FILE_NAME, CSV_LOG_FILE_NAME, PLOT_LOG_FILE_NAME, \
     METRICS_LOG_FILE_NAME, NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
     NUMBER_OF_CHANNELS, KEYPOINT_INDEX, MIRRORED_CHANNELS, mkdir_if_not_exists,\
     DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, ARCHITECTURES, TEST_DATASET,\
-    DEBUG, IMAGE_SIZE, MIRROR_IMAGES, MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS
+    DEBUG, IMAGE_SIZE, MIRROR_IMAGES, MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS,\
+    BONES
 import evaluation
 import coco_metrics
 
@@ -141,7 +142,16 @@ class DataGenerator(Sequence):
                 
                 # swap left and right parts
                 stacked_masks = stacked_masks[..., MIRRORED_CHANNELS]
- 
+            
+            """
+            image_name = os.path.basename(image_file_path)
+            if (image_name == "233.jpg"):
+                for i in range(NUMBER_OF_CHANNELS):
+                    one_hot_mask_np = stacked_masks[:,:,i]
+                    one_hot_mask_path = os.path.join(LOG_FOLDER, "one_hot_mask_%s.png" % i)
+                    Image.fromarray(np.uint8(one_hot_mask_np * 255)).save(one_hot_mask_path)
+            """
+            
             source[i,] = image_np
             target[i,] = stacked_masks
 
@@ -301,9 +311,6 @@ def predict(model, image):
         max_index = detected_keypoint.argmax()
         y,x = np.unravel_index(max_index, detected_keypoint.shape)
         
-        x *= (MASK_DOWNSAMPLING_FACTOR)
-        y *= (MASK_DOWNSAMPLING_FACTOR)
-        
         detected_keypoints[i - KEYPOINT_INDEX] = [x, y]
 
     return detected_keypoints, predicted_body_parts, resized_image
@@ -321,10 +328,8 @@ def scale_keypoints(keypoints, scale):
     return scaled_keypoints
 
 
-def predict_single_image(model, image_path, keypoint_output_folder, mask_output_folder):
+def predict_single_image(model, image_path, keypoint_output_folder, mask_output_folder, scale_to_original_size=False):
     image_file_name = os.path.basename(image_path)  
-    # print(image_file_name)
-    
     image_name_without_ext, _ = os.path.splitext(image_file_name)
         
     image = Image.open(image_path)
@@ -337,10 +342,19 @@ def predict_single_image(model, image_path, keypoint_output_folder, mask_output_
     mask = Image.open(mask_file_path)
     mask = mask.getchannel(MASK_CHANNEL)
     binary_mask = mask.point(lambda p: ((p != 255) and 1) or 0)
+    
+    if (not scale_to_original_size):
+        binary_mask = binary_mask.resize(resized_image.size, Image.NEAREST)
+        
     binary_mask_np = np.asarray(binary_mask, dtype=np.uint8)
 
     predicted_body_parts = Image.fromarray(np.uint8(predicted_body_parts_np), "L")
-    scaled_detected_mask = predicted_body_parts.resize(image.size, Image.NEAREST)
+    
+    if (scale_to_original_size):
+        mask_size = image.size 
+    else:
+        mask_size = resized_image.size
+    scaled_detected_mask = predicted_body_parts.resize(mask_size, Image.NEAREST)
     scaled_detected_mask_np = np.array(scaled_detected_mask)
     
     scaled_detected_mask_np *= binary_mask_np
@@ -353,18 +367,40 @@ def predict_single_image(model, image_path, keypoint_output_folder, mask_output_
     colored_mask = Image.fromarray(np.uint8(colored_mask_np), "RGB")
     colored_mask.save(os.path.join(mask_output_folder, image_name_without_ext + "_colored.png"))
     
-    scaled_detected_keypoints = scale_keypoints(detected_keypoints, original_image_width / resized_image.width)
-
-    draw = ImageDraw.Draw(image)
+    if (scale_to_original_size):
+        keypoint_scale_factor = original_image_width / (resized_image.width / MASK_DOWNSAMPLING_FACTOR)
+        image_with_skeleton = image
+    else:
+        keypoint_scale_factor = MASK_DOWNSAMPLING_FACTOR
+        image_with_skeleton = resized_image
     
+    scaled_detected_keypoints = scale_keypoints(detected_keypoints, keypoint_scale_factor)  
+
+    draw = ImageDraw.Draw(image_with_skeleton)
+ 
+    for bone in BONES:
+        start_keypoint_id = bone[0]
+        end_keypoint_id = bone[1]
+        color = bone[2]
+        
+        if (not start_keypoint_id in scaled_detected_keypoints or 
+            not end_keypoint_id in scaled_detected_keypoints):
+            continue
+        
+        start_point = tuple(scaled_detected_keypoints[start_keypoint_id])
+        end_point = tuple(scaled_detected_keypoints[end_keypoint_id])
+        
+        draw.line([start_point, end_point], fill=color, width=4)
+
     for coords in scaled_detected_keypoints.values():
         x = coords[0]
         y = coords[1]
               
-        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill="black")
-        draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill="white")
-        
-    image.convert("RGB").save(os.path.join(keypoint_output_folder, image_name_without_ext + "_points.jpg"))
+        draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill="black")
+        draw.ellipse((x - 1, y - 1, x + 1, y + 1), fill="white")
+ 
+    image_with_skeleton_path = os.path.join(keypoint_output_folder, image_name_without_ext + "_skeleton.jpg")
+    image_with_skeleton.convert("RGB").save(image_with_skeleton_path)
     
     keypoints_file_path = os.path.join(keypoint_output_folder, image_name_without_ext + ".json")
     json.dump(scaled_detected_keypoints, open(keypoints_file_path, "w"))
@@ -403,7 +439,7 @@ def main(train_folder, test_folder, log_folder, architecture):
         
     model = create_model(architecture)
     
-    # model = train(model, train_image_folder, test_image_folder, log_folder)
+    model = train(model, train_image_folder, test_image_folder, log_folder)
     model.load_weights(os.path.join(log_folder, WEIGHTS_FILE_NAME))
     
     if (DEBUG):
@@ -411,11 +447,12 @@ def main(train_folder, test_folder, log_folder, architecture):
         image_names = os.listdir(train_image_folder)[:10]      
     else :
         image_folder = test_image_folder
-        image_names = os.listdir(test_image_folder)
+        image_names = os.listdir(test_image_folder)[:10] 
 
     for image_name in image_names:
         predict_single_image(model, os.path.join(image_folder, image_name),
-                             keypoint_output_folder, mask_output_folder)
+                             keypoint_output_folder, mask_output_folder,
+                             scale_to_original_size=True)
     
     # needed otherwise getting layers by name will result in an error
     # as numbers are added incrementally
@@ -425,8 +462,8 @@ def main(train_folder, test_folder, log_folder, architecture):
     path_of_this_file = os.path.abspath(__file__)
     shutil.copy(path_of_this_file, log_folder)
     
-    if (not DEBUG):
-        calculate_metrics(test_folder, log_folder)
+    # if (not DEBUG):
+    #    calculate_metrics(test_folder, log_folder)
     
     
 if __name__ == '__main__':
