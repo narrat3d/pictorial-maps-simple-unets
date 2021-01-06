@@ -1,7 +1,7 @@
 import os
 
 WEIGHTS_FILE_NAME = "weights.hdf5"
-CSV_LOG_FILE_NAME = "training.csv"
+CSV_LOG_FILE_NAME = "train_and_eval.csv"
 PLOT_LOG_FILE_NAME = "plot.png"
 METRICS_LOG_FILE_NAME = "metrics.json"
 
@@ -31,14 +31,39 @@ MASK_DOWNSAMPLING_FACTOR = 2
 # standard deviation of gaussian kernel for creating keypoint heatmaps
 SIGMA = 2
 
-RUNS = ["1st", "2nd", "3rd", "4th", "5th"]
-ARCHITECTURES = ["simple_deconv", "simple_unet", "simple_unet+", "simple_unet++"]
+# optionally comment items in the list 
+RUNS = [
+    "1st", 
+    # "2nd", 
+    # "3rd", 
+    # "4th", 
+    # "5th"
+]
 
-DATASETS = ["real", "mixed", "synthetic"]
+# optionally comment items in the list 
+ARCHITECTURES = [
+    # "simple_deconv", 
+    # "simple_unet", 
+    "simple_unet+", 
+    # "simple_unet++"
+]
+
+# optionally comment items in the list 
+DATASETS = [
+    # "real", 
+    "separated", 
+    # "synthetic"
+]
+TEST_DATASET = "test"
 
 DATASET_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data"
 LOG_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs"
-TEST_DATASET = "test"
+INFERENCE_MODEL_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\models\simple_unet+_separated"
+
+GROUND_TRUTH_FOLDER = os.path.join(DATASET_FOLDER, TEST_DATASET)
+INFERENCE_MODEL_WEIGHTS = os.path.join(INFERENCE_MODEL_FOLDER, WEIGHTS_FILE_NAME)
+BEST_ARCHITECTURE = "simple_unet+"
+# internally separated_2nd
 
 COLORS = [
     (255, 255, 255), # background
@@ -89,3 +114,9 @@ BONES = [
 def mkdir_if_not_exists(file_path):
     if (not os.path.exists(file_path)):
         os.mkdir(file_path)
+
+get_architecture_folder = lambda architecture: \
+    os.path.join(LOG_FOLDER, architecture)
+
+get_results_folder = lambda architecture, dataset_and_run_nr: \
+    os.path.join(get_architecture_folder(architecture), dataset_and_run_nr)

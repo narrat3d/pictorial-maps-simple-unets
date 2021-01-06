@@ -1,6 +1,6 @@
 '''
 precondition:
-predicted masks and keypoints with training.py
+predicted masks and keypoints with train_and_eval.py
 
 input:
 folder with groundtruth images, masks and keypoints
@@ -17,7 +17,8 @@ alternative metrics to COCO
 import math
 import json
 from PIL import Image
-from config import NUMBER_OF_KEYPOINTS, NUMBER_OF_BODY_PARTS, MASK_CHANNEL
+from config import NUMBER_OF_KEYPOINTS, NUMBER_OF_BODY_PARTS, MASK_CHANNEL,\
+    GROUND_TRUTH_FOLDER, get_results_folder
 import numpy as np
 import os
 
@@ -179,6 +180,7 @@ def main(ground_truth_folder, results_folder):
     
     return [avg_keypoint_error, avg_body_parts_error]
         
+        
 if __name__ == '__main__':
-    main(r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data\test", 
-         r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs\real_128px_deconv4x4")
+    results_folder = get_results_folder("simple_unet+", "separated_1st")
+    main(GROUND_TRUTH_FOLDER, results_folder)

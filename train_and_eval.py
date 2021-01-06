@@ -1,3 +1,16 @@
+'''
+input:
+training and test data (images, masks, keypoints)
+
+output:
+weights and evaluation metrics for the best model of a run
+visualization of the model
+detected body part masks and pose keypoints
+intermediate evaluation metrics
+
+purpose:
+train and evaluate different architectures and datasets 
+'''
 import os
 import json
 import math
@@ -20,10 +33,10 @@ from keras_applications.resnet50 import ResNet50
 from config import WEIGHTS_FILE_NAME, CSV_LOG_FILE_NAME, PLOT_LOG_FILE_NAME, \
     METRICS_LOG_FILE_NAME, NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
     NUMBER_OF_CHANNELS, KEYPOINT_INDEX, MIRRORED_CHANNELS, mkdir_if_not_exists,\
-    DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, ARCHITECTURES, TEST_DATASET,\
+    DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, ARCHITECTURES,\
     DEBUG, IMAGE_SIZE, MIRROR_IMAGES, MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS,\
-    BONES
-import evaluation
+    BONES, GROUND_TRUTH_FOLDER
+import error_metrics
 import coco_metrics
 
 
@@ -133,7 +146,6 @@ class DataGenerator(Sequence):
                         
             stacked_masks = np.concatenate([body_parts_mask_np, keypoint_mask], axis=2)
             
-
             mirror_image = random.choice([True, False])
             
             if (MIRROR_IMAGES and mirror_image and not DEBUG):                
@@ -142,15 +154,6 @@ class DataGenerator(Sequence):
                 
                 # swap left and right parts
                 stacked_masks = stacked_masks[..., MIRRORED_CHANNELS]
-            
-            """
-            image_name = os.path.basename(image_file_path)
-            if (image_name == "233.jpg"):
-                for i in range(NUMBER_OF_CHANNELS):
-                    one_hot_mask_np = stacked_masks[:,:,i]
-                    one_hot_mask_path = os.path.join(LOG_FOLDER, "one_hot_mask_%s.png" % i)
-                    Image.fromarray(np.uint8(one_hot_mask_np * 255)).save(one_hot_mask_path)
-            """
             
             source[i,] = image_np
             target[i,] = stacked_masks
@@ -407,7 +410,7 @@ def predict_single_image(model, image_path, keypoint_output_folder, mask_output_
 
 
 def calculate_metrics(test_folder, log_folder):
-    [keypoints_error, body_parts_error] = evaluation.main(test_folder, log_folder)
+    [keypoints_error, body_parts_error] = error_metrics.main(test_folder, log_folder)
     [keypoints_precisions, body_parts_precisions] = coco_metrics.main(test_folder, log_folder)
     
     metrics = {
@@ -428,9 +431,9 @@ def calculate_metrics(test_folder, log_folder):
         json.dump(metrics, metrics_file)
 
 
-def main(train_folder, test_folder, log_folder, architecture):
+def main(train_folder, log_folder, architecture):
     train_image_folder = os.path.join(train_folder, "images")
-    test_image_folder = os.path.join(test_folder, "images")
+    test_image_folder = os.path.join(GROUND_TRUTH_FOLDER, "images")
     
     keypoint_output_folder = os.path.join(log_folder, "keypoints")
     mask_output_folder = os.path.join(log_folder, "masks")
@@ -447,7 +450,7 @@ def main(train_folder, test_folder, log_folder, architecture):
         image_names = os.listdir(train_image_folder)[:10]      
     else :
         image_folder = test_image_folder
-        image_names = os.listdir(test_image_folder)[:10] 
+        image_names = os.listdir(test_image_folder)
 
     for image_name in image_names:
         predict_single_image(model, os.path.join(image_folder, image_name),
@@ -462,13 +465,11 @@ def main(train_folder, test_folder, log_folder, architecture):
     path_of_this_file = os.path.abspath(__file__)
     shutil.copy(path_of_this_file, log_folder)
     
-    # if (not DEBUG):
-    #    calculate_metrics(test_folder, log_folder)
+    if (not DEBUG):
+        calculate_metrics(GROUND_TRUTH_FOLDER, log_folder)
     
     
 if __name__ == '__main__':
-    test_folder = os.path.join(DATASET_FOLDER, TEST_DATASET)
-    
     for architecture in ARCHITECTURES:
         for dataset in DATASETS:
             train_folder = os.path.join(DATASET_FOLDER, dataset)
@@ -478,4 +479,4 @@ if __name__ == '__main__':
                 mkdir_if_not_exists(results_folder)
                 log_folder = os.path.join(results_folder, "%s_%s" % (dataset, run))
                 
-                main(train_folder, test_folder, log_folder, architecture)
+                main(train_folder, log_folder, architecture)
