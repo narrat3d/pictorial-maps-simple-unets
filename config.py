@@ -33,18 +33,23 @@ SIGMA = 2
 
 # optionally comment items in the list 
 RUNS = [
-    "1st", 
-    # "2nd", 
-    # "3rd", 
-    # "4th", 
-    # "5th"
+    "1st",
+    # "2nd",
+    # "3rd",
+    # "4th",
+    # "5th",
+    # "6th", 
+    # "7th", 
+    # "8th", 
+    # "9th", 
+    # "10th"
 ]
 
 # optionally comment items in the list 
 ARCHITECTURES = [
     # "simple_deconv", 
-    # "simple_unet", 
-    "simple_unet+", 
+    "simple_unet", 
+    # "simple_unet+", 
     # "simple_unet++"
 ]
 
@@ -52,18 +57,18 @@ ARCHITECTURES = [
 DATASETS = [
     # "real", 
     "separated", 
-    # "synthetic"
+    # "synthetic",
 ]
 TEST_DATASET = "test"
 
-DATASET_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\data"
-LOG_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\logs"
-INFERENCE_MODEL_FOLDER = r"C:\Users\sraimund\Pictorial-Maps-Simple-Res-U-Net\models\simple_unet+_separated"
+DATASET_FOLDER = r"E:\CNN\masks\data\figures"
+LOG_FOLDER = r"E:\CNN\logs\body_parts"
+INFERENCE_MODEL_FOLDER = r"E:\CNN\models\simple_unet_separated"
+# internally separated_8th
 
 GROUND_TRUTH_FOLDER = os.path.join(DATASET_FOLDER, TEST_DATASET)
 INFERENCE_MODEL_WEIGHTS = os.path.join(INFERENCE_MODEL_FOLDER, WEIGHTS_FILE_NAME)
-BEST_ARCHITECTURE = "simple_unet+"
-# internally separated_2nd
+BEST_ARCHITECTURE = "simple_unet"
 
 COLORS = [
     (255, 255, 255), # background
