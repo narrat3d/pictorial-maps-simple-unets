@@ -11,7 +11,7 @@
 * Download the [training data](https://ikgftp.ethz.ch/?u=K8bH&p=3RwE&path=/human_figures_training_data.zip) and [test data](https://ikgftp.ethz.ch/?u=VDYk&p=Bm6D&path=/human_figures_test_data.zip), store them in the same folder and set DATASET_FOLDER to its location in config.py
 * Set LOG_FOLDER in config.py where intermediate snapshots shall be stored
 * Optionally adjust properties like datasets (e.g. separated), architectures (e.g. simple-unet+), and number of runs (e.g. 1st)
-* Run train_and_eval.py
+* Run train_and_eval_wrapper.py
 * If you enable the DEBUG variable in config.py, the CNN is trained only on the first 10 images, which are also used for validation. By this, it can be tested if a network is able to learn. 
 
 ## Evaluation

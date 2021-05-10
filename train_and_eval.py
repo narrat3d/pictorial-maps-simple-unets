@@ -10,6 +10,9 @@ intermediate evaluation metrics
 
 purpose:
 train and evaluate different architectures and datasets 
+
+sources:
+https://github.com/CarryHJR/Nested-UNet/blob/master/model.py
 '''
 import os
 import json
@@ -33,11 +36,11 @@ from keras_applications.resnet50 import ResNet50
 from config import WEIGHTS_FILE_NAME, CSV_LOG_FILE_NAME, PLOT_LOG_FILE_NAME, \
     METRICS_LOG_FILE_NAME, NUMBER_OF_BODY_PARTS, NUMBER_OF_KEYPOINTS, MASK_CHANNEL,\
     NUMBER_OF_CHANNELS, KEYPOINT_INDEX, MIRRORED_CHANNELS, mkdir_if_not_exists,\
-    DATASET_FOLDER, LOG_FOLDER, RUNS, DATASETS, ARCHITECTURES,\
-    DEBUG, IMAGE_SIZE, MIRROR_IMAGES, MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS,\
-    BONES, GROUND_TRUTH_FOLDER
+    DATASET_FOLDER, LOG_FOLDER, DEBUG, IMAGE_SIZE, MIRROR_IMAGES, \
+    MASK_DOWNSAMPLING_FACTOR, SIGMA, COLORS, BONES, GROUND_TRUTH_FOLDER
 import error_metrics
 import coco_metrics
+import sys
 
 
 if (DEBUG):
@@ -470,13 +473,14 @@ def main(train_folder, log_folder, architecture):
     
     
 if __name__ == '__main__':
-    for architecture in ARCHITECTURES:
-        for dataset in DATASETS:
-            train_folder = os.path.join(DATASET_FOLDER, dataset)
-            
-            for run in RUNS:
-                results_folder = os.path.join(LOG_FOLDER, architecture)
-                mkdir_if_not_exists(results_folder)
-                log_folder = os.path.join(results_folder, "%s_%s" % (dataset, run))
-                
-                main(train_folder, log_folder, architecture)
+    architecture = sys.argv[1]
+    dataset = sys.argv[2]
+    run = sys.argv[3]
+    
+    train_folder = os.path.join(DATASET_FOLDER, dataset)
+    
+    results_folder = os.path.join(LOG_FOLDER, architecture)
+    mkdir_if_not_exists(results_folder)
+    log_folder = os.path.join(results_folder, "%s_%s" % (dataset, run))
+    
+    main(train_folder, log_folder, architecture)
