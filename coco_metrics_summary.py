@@ -1,6 +1,6 @@
 '''
 input:
-10 runs for a particular architecture
+20 runs for different architectures
 
 output:
 calculate the average of scores from these runs
@@ -13,7 +13,7 @@ import os
 import json
 import numpy as np
 
-from config import METRICS_LOG_FILE_NAME, get_architecture_folder
+from config import METRICS_LOG_FILE_NAME, get_architecture_folder, ARCHITECTURES
 
 
 def print_result(coco_array):
@@ -47,7 +47,7 @@ def aggregate_results(log_folder):
             results_array = aggregated_results[dataset][task]
                         
             results_array.sort(key=lambda array: array[0])
-            filtered_results_array = results_array[2:-2]
+            filtered_results_array = results_array[4:-4]
             
             average_results = np.mean(np.array(filtered_results_array), axis=0).tolist()
             print_result(average_results)
@@ -102,6 +102,10 @@ def find_best_result(log_folder):
     
     
 if __name__ == '__main__':
-    architecture_folder = get_architecture_folder("simple_unet+")
-    aggregate_results(architecture_folder)
-    find_best_result(architecture_folder)
+    for architecture in ARCHITECTURES: 
+        print(architecture + "\n") 
+        architecture_folder = get_architecture_folder(architecture)
+        
+        aggregate_results(architecture_folder)
+        find_best_result(architecture_folder)
+        print("\n")
