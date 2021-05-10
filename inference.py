@@ -21,7 +21,7 @@ def main(weights_file_path, architecture, name):
     test_image_folder = os.path.join(GROUND_TRUTH_FOLDER, "images")
     image_names = os.listdir(test_image_folder)
 
-    log_folder = os.path.join(LOG_FOLDER, name)
+    log_folder = os.path.join(LOG_FOLDER, architecture, name)
 
     keypoint_output_folder = os.path.join(log_folder, "keypoints")
     mask_output_folder = os.path.join(log_folder, "masks")
@@ -40,4 +40,4 @@ def main(weights_file_path, architecture, name):
 
 
 if __name__ == '__main__':
-    main(INFERENCE_MODEL_WEIGHTS, BEST_ARCHITECTURE, "simple_unet+_separated")
+    main(INFERENCE_MODEL_WEIGHTS, BEST_ARCHITECTURE, "separated_8th")
