@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: Please cite the following works when using this code.
+preferred-citation:
+  authors:
+    - family-names: Schnürer
+      given-names: Raimund
+    - family-names: Cengiz Öztireli
+      given-names: A.
+    - family-names: Heitzler
+      given-names: Magnus
+    - family-names: Sieber
+      given-names: René
+    - family-names: Hurni
+      given-names: Lorenz
+  doi: 10.1080/23729333.2021.1949087
+  identifiers:
+    - type: doi
+      value: 10.1080/23729333.2021.1949087
+    - type: url
+      value: https://doi.org/10.1080/23729333.2021.1949087
+    - type: other
+      value: urn:issn:2372-9333
+  title: >-
+    Instance Segmentation, Body Part Parsing, and Pose Estimation of Human
+    Figures in Pictorial Maps
+  url: https://doi.org/10.1080/23729333.2021.1949087
+  date-published: 2021-08-10
+  year: 2022
+  month: 10
+  issn: 2372-9333
+  issue: '3'
+  journal: International Journal of Cartography
+  languages:
+    - en
+  start: '291'
+  end: '307'
+  type: article
+  volume: '8'
