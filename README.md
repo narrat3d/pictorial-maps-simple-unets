@@ -29,4 +29,19 @@ This is code for the article [Instance Segmentation, Body Part Parsing, and Pose
 ## Tested architectures
 ![Implemented architectures](architectures.png "Implemented architectures")
 
+## Citation
+Please cite the following article when using this code:
+```
+@article{schnuerer2022instance,
+  author = {Raimund Schnürer, A. Cengiz Öztireli, Magnus Heitzler, René Sieber and Lorenz Hurni},
+  title = {Instance Segmentation, Body Part Parsing, and Pose Estimation of Human Figures in Pictorial Maps},
+  journal = {International Journal of Cartography},
+  volume = {8},
+  number = {3},
+  pages = {291-307},
+  year = {2022},
+  doi = {10.1080/23729333.2021.1949087}
+}
+```
+
 © 2020-2021 ETH Zurich, Raimund Schnürer
