@@ -2,6 +2,8 @@
 
 This is code for the article [Instance Segmentation, Body Part Parsing, and Pose Estimation of Human Figures in Pictorial Maps](https://doi.org/10.1080/23729333.2021.1949087). Visit the [project website](http://narrat3d.ethz.ch/segmentation-of-human-figures-in-pictorial-maps/) for more information.
 
+![Body_parts_figures](https://github.com/narrat3d/pictorial-maps-simple-unets/assets/9949879/8aa830bf-c956-4b87-8df0-531e517f027b)
+
 ## Installation
 
 * Requires [Python 3.7.x](https://www.python.org/downloads/) or higher
